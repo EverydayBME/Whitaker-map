@@ -190,7 +190,7 @@ function openInstitution(id){
 }
 function renderDetail(){
  const i=allInstitutions.find(i=>i.id===state.activeId);if(!i){state.view='institutions';renderPanel();return;}
- $('panel').innerHTML=`<button class="back" data-action="back"><span aria-hidden="true">←</span> Back</button><div class="eyebrow">Host institution</div><h2 class="detail-title" tabindex="-1">${e(i.institution)}</h2><p class="location">${e([i.city,i.countryName].filter(Boolean).join(' · '))}</p><dl class="detail-stats"><div><dt>Grantees hosted</dt><dd>${i.grantees}</dd></div><div><dt>Years active</dt><dd>${e(i.yearsActive)||'Not recorded'}</dd></div></dl><p>${e(i.description)}</p>${i.themes.length?'<h3>Research themes</h3>'+i.themes.map(t=>`<button class="theme-button" data-theme="${e(t)}">${e(titleCaseTheme(t))}</button>`).join(''):''}<h3>Example Whitaker project titles</h3>${i.projects.length?'<ul class="project-list">'+i.projects.map(p=>`<li>${e(p)}</li>`).join('')+'</ul>':'<p>No project titles available.</p>'}${i.address?`<h3>Address</h3><p>${e(i.address)}</p>`:''}<a class="external" href="https://www.google.com/search?q=${encodeURIComponent(i.institution+' biomedical engineering')}" target="_blank" rel="noopener noreferrer">Find the institution’s website ↗</a><p class="list-note">Opens a web search in a new tab.</p>`;
+ $('panel').innerHTML=`<button class="back" data-action="back"><span aria-hidden="true">←</span> Back</button><div class="eyebrow">Host institution</div><h2 class="detail-title" tabindex="-1">${e(i.institution)}</h2><p class="location">${e([i.city,i.countryName].filter(Boolean).join(' · '))}</p><dl class="detail-stats"><div><dt>Grantees hosted</dt><dd>${i.grantees}</dd></div><div><dt>Years active</dt><dd>${e(i.yearsActive)||'Not recorded'}</dd></div></dl><p>${e(i.description)}</p>${i.themes.length?'<h3>Research themes</h3>'+i.themes.map(t=>`<button class="theme-button" data-theme="${e(t)}">${e(titleCaseTheme(t))}</button>`).join(''):''}<h3>Example Whitaker project titles</h3>${i.projects.length?'<ul class="project-list">'+i.projects.map(p=>`<li>${e(p)}</li>`).join('')+'</ul>':'<p>No project titles available.</p>'}${i.address?`<h3>Address</h3><p>${e(i.address)}</p>`:''}<a class="external" href="${e(i.website || ('https://www.google.com/search?q='+encodeURIComponent(i.institution+' biomedical engineering')))}" target="_blank" rel="noopener noreferrer">${i.website?'Visit institution website':'Find the institution’s website'} ↗</a><p class="list-note">${i.website?'Opens the website listed in the archive in a new tab.':'Opens a web search in a new tab.'}</p>`;
 }
 function mapPadding(){
  const s=map.getSize(), open=!$('rail').classList.contains('is-collapsed');
@@ -208,9 +208,18 @@ function initMap(){
  clusters=L.markerClusterGroup({showCoverageOnHover:false,spiderfyOnMaxZoom:true,maxClusterRadius:50,animate:animate(),iconCreateFunction:cluster=>{const n=cluster.getChildCount(),size=n>=25?52:n>=8?44:36;return L.divIcon({html:`<span class="cluster-icon" aria-label="${n} institutions. Zoom to explore">${n}</span>`,className:'cluster-wrapper',iconSize:[size,size]});}}).addTo(map);
  map.on('moveend',updateSelection);
 }
-function loadData(){
+function chooseLocalCSV(){
+ $('loadStatus').hidden=false;
+ $('loadStatus').innerHTML='<strong>Preview from your computer</strong><p>Select Sheet2_Institutions_for_Map.csv to load the archive. The file stays on your computer.</p><label for="localCSV">Institution CSV</label><input id="localCSV" type="file" accept=".csv,text/csv" style="display:block;width:100%;margin-top:8px">';
+ $('statsText').textContent='Choose the institution CSV to begin.';
+ $('localCSV').addEventListener('change',event=>{const file=event.target.files[0];if(file)loadData(file);});
+}
+function safeWebsite(value){
+ try { const url=new URL(String(value||'').trim());return ['https:','http:'].includes(url.protocol)?url.href:''; } catch { return ''; }
+}
+function loadData(source=CSV_URL){
  $('loadStatus').hidden=false;$('loadStatus').textContent='Loading institution data…';
- Papa.parse(CSV_URL,{download:true,header:true,skipEmptyLines:'greedy',complete:results=>{
+ Papa.parse(source,{download:typeof source==='string',header:true,skipEmptyLines:'greedy',complete:results=>{
  const required=['Institution','Latitude','Longitude','Country','Description','Grantees Hosted'];
  if(!required.every(k=>results.meta.fields?.includes(k))||!results.data.length){showError('The institution data could not be read. Check that the original CSV is alongside this page.');return;}
  if(results.errors.some(err=>err.type==='Quotes'||err.type==='FieldMismatch')){showError('The CSV contains a formatting error. Please check the institution data and try again.');return;}
@@ -218,6 +227,7 @@ function loadData(){
  const lat=Number(r.Latitude),lng=Number(r.Longitude);if(!String(r.Latitude||'').trim()||!String(r.Longitude||'').trim()||!Number.isFinite(lat)||!Number.isFinite(lng)||Math.abs(lat)>90||Math.abs(lng)>180)return null;
  const countryCode=(r.Country||'').trim(),description=r.Description||'',grantees=Math.max(0,parseInt(r['Grantees Hosted'],10)||0);
  const i={id:'i'+index,institution:r.Institution||'',lat,lng,city:r.City||'',countryName:COUNTRY_NAMES[countryCode]||countryCode,address:r.Address||'',description,grantees,yearsActive:r['Years Active']||'',themes:extractThemes(description),projects:(r['Example Project Titles']||'').split('|').map(p=>p.trim()).filter(Boolean),bucket:bucketFor(grantees)};
+ i.website=safeWebsite(r['Institution URL']);
  i.searchText=[i.institution,i.city,i.countryName,description,...i.projects].join(' ').toLowerCase();return i;
  }).filter(Boolean);
  if(!allInstitutions.length){showError('No institutions with valid map coordinates were found.');return;}
@@ -234,7 +244,7 @@ function loadData(){
  if(skipped){$('loadStatus').textContent=`${skipped} records could not be mapped because their coordinates are missing or invalid.`;$('loadStatus').hidden=false;}
  },error:()=>showError('Institution data could not load. Keep Sheet2_Institutions_for_Map.csv in the same folder as index.html and open the site through GitHub Pages or a local web server.')});
 }
-function showError(message){$('loadStatus').hidden=false;$('loadStatus').innerHTML=`${e(message)} <button id="retryLoad">Try again</button>`;$('retryLoad').onclick=loadData;$('statsText').textContent='Archive unavailable';}
+function showError(message){$('loadStatus').hidden=false;$('loadStatus').innerHTML=`${e(message)} <button id="retryLoad">Try again</button>`;$('retryLoad').onclick=()=>location.protocol==='file:'?chooseLocalCSV():loadData();$('statsText').textContent='Archive unavailable';}
 $('rail').addEventListener('click',event=>{
  const b=event.target.closest('button');if(!b)return;
  if(b.dataset.view)navigate(b.dataset.view);
@@ -254,7 +264,7 @@ $('mobileToggle').onclick=()=>{setPanelOpen($('rail').classList.contains('is-col
 document.addEventListener('keydown',event=>{if(event.key==='Escape'){if(state.view!=='home'){goBack();}else if(mobile()){setPanelOpen(false);$('mobileToggle').focus();}}});
 let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(!mobile())setPanelOpen(true);if(map){map.invalidateSize();fitResults();}},160);});
 renderPanel();
-try{if(!window.L||!L.markerClusterGroup||!window.Papa)throw new Error('Required libraries unavailable');initMap();loadData();}catch(err){$('loadStatus').textContent='The map could not start. Check your internet connection, then reload this page.';$('statsText').textContent='Map unavailable';console.error(err);}
+try{if(!window.L||!L.markerClusterGroup||!window.Papa)throw new Error('Required libraries unavailable');initMap();if(location.protocol==='file:')chooseLocalCSV();else loadData();}catch(err){$('loadStatus').textContent='The map could not start. Check your internet connection, then reload this page.';$('statsText').textContent='Map unavailable';console.error(err);}
 
 </script>
 </body>
