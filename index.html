@@ -1,582 +1,46 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EverydayBME: Whitaker International Host Map</title>
-  <meta name="description" content="Interactive map of 215 international universities and research institutes that hosted US biomedical engineering students through the Whitaker International Program (2005–2017)." />
-
-  <!-- Leaflet core -->
-  <link rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin="" />
-
-  <!-- Leaflet MarkerCluster -->
-  <link rel="stylesheet"
-    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
-  <link rel="stylesheet"
-    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-
-  <!-- Type: Source Serif 4 (display) + Public Sans (body / UI) -->
-  <!-- Whitaker-inspired typography -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-
-  <style>
-    :root {
-      --whitaker-deep: #2e6f87;
-      --whitaker-deeper: #245b73;
-      --whitaker-mid: #5f93a7;
-      --whitaker-map: #add0dc;
-      --whitaker-cream: #f6f2eb;
-      --whitaker-white: #fffdf8;
-      --whitaker-line: rgba(255,255,255,.78);
-      --whitaker-ink: #183f54;
-      --panel-w: 320px;
-      --header-h: 92px;
-      --font-condensed: 'Barlow Condensed', 'Arial Narrow', sans-serif;
-      --font-ui: 'Public Sans', Arial, sans-serif;
-      --ease: cubic-bezier(.22,.61,.36,1);
-    }
-
-    *, *::before, *::after { box-sizing: border-box; }
-    html, body { margin:0; width:100%; height:100%; }
-    body {
-      font-family: var(--font-ui);
-      color: var(--whitaker-ink);
-      background: var(--whitaker-map);
-      overflow: hidden;
-      -webkit-font-smoothing: antialiased;
-    }
-    button, input, select { font: inherit; }
-    a { color: inherit; }
-
-    .app { position: relative; width:100%; height:100vh; overflow:hidden; }
-
-    /* Full-bleed map, matching the designer's map-first composition */
-    .map-stage { position:absolute; inset:0; }
-    #map { position:absolute; inset:0; background:var(--whitaker-map); }
-    .leaflet-container { font-family: var(--font-ui); background:var(--whitaker-map); }
-    .leaflet-tile-pane {
-      filter: saturate(.78) contrast(.92) brightness(1.08);
-    }
-    .leaflet-control-attribution {
-      background: rgba(246,242,235,.72) !important;
-      color: rgba(24,63,84,.75) !important;
-      font-size: 9px !important;
-    }
-    .leaflet-control-zoom {
-      border: 0 !important;
-      box-shadow: 0 3px 14px rgba(23,61,81,.20) !important;
-      border-radius: 2px !important;
-      overflow:hidden;
-      margin-top: calc(var(--header-h) + 14px) !important;
-    }
-    .leaflet-control-zoom a {
-      background: rgba(255,253,248,.92) !important;
-      color: var(--whitaker-deeper) !important;
-      border-bottom: 1px solid rgba(46,111,135,.12) !important;
-    }
-
-    /* Translucent Whitaker masthead */
-    .site-header {
-      position:absolute;
-      top:0; left:var(--panel-w); right:0;
-      height:var(--header-h);
-      z-index:1050;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding: 0 24px;
-      background: rgba(74,132,154,.74);
-      border:0;
-      color:white;
-      backdrop-filter: blur(2px);
-    }
-    .brand { display:block; text-align:center; }
-    .brand-mark { display:none; }
-    .brand-text {
-      display:block;
-      color:white;
-      font-family: var(--font-ui);
-      font-weight:600;
-      font-size:21px;
-      line-height:1.0;
-      letter-spacing:.30em;
-      text-transform:uppercase;
-      overflow:visible;
-      white-space:normal;
-    }
-    .brand-text em {
-      display:block;
-      margin-top:8px;
-      color:white;
-      font-family:var(--font-ui);
-      font-size:12px;
-      font-style:normal;
-      font-weight:600;
-      letter-spacing:.24em;
-    }
-    .stats {
-      position:absolute;
-      right:22px;
-      bottom:12px;
-      color:rgba(255,255,255,.82);
-      font-family:var(--font-condensed);
-      font-size:12px;
-      letter-spacing:.08em;
-      text-transform:uppercase;
-    }
-    .stats strong { color:white; }
-
-    /* Left navigation/filter rail */
-    .filter-bar {
-      position:absolute;
-      z-index:1080;
-      top:0; left:0; bottom:0;
-      width:var(--panel-w);
-      display:flex;
-      flex-direction:column;
-      align-items:stretch;
-      gap:0;
-      padding:30px 15px 20px;
-      background: rgba(46,111,135,.88);
-      border:0;
-      color:white;
-      backdrop-filter: blur(2px);
-    }
-    .filter-bar::after {
-      content:'EVERYDAYBME  •  WHITAKER INTERNATIONAL ARCHIVE';
-      margin-top:auto;
-      padding:18px 20px 0;
-      border-top:1px solid rgba(255,255,255,.78);
-      font-family:var(--font-condensed);
-      font-size:10px;
-      letter-spacing:.15em;
-      color:rgba(255,255,255,.72);
-    }
-    .search-wrap {
-      position:relative;
-      flex:0 0 auto;
-      width:100%;
-      max-width:none;
-      min-width:0;
-      margin-bottom:64px;
-    }
-    .search-wrap::before {
-      left:auto; right:14px;
-      width:17px; height:17px;
-      filter:brightness(0) invert(1);
-      opacity:.95;
-    }
-    .search-input {
-      width:100%;
-      height:38px;
-      padding:8px 42px 8px 14px;
-      border:1.5px solid rgba(255,255,255,.88);
-      border-radius:18px;
-      background:transparent;
-      color:white;
-      font-family:var(--font-condensed);
-      font-size:15px;
-      letter-spacing:.06em;
-    }
-    .search-input::placeholder { color:transparent; }
-    .search-input:focus {
-      outline:none;
-      border-color:white;
-      box-shadow:0 0 0 2px rgba(255,255,255,.14);
-    }
-
-    .filter-select {
-      width:100%;
-      max-width:none;
-      min-height:47px;
-      margin:0 0 9px;
-      padding:12px 42px 12px 24px;
-      border:0;
-      border-radius:9px;
-      color:white;
-      background-color:transparent;
-      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.7'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-      background-position:right 18px center;
-      background-size:14px;
-      font-family:var(--font-condensed);
-      font-size:17px;
-      font-weight:600;
-      letter-spacing:.13em;
-      text-transform:uppercase;
-      cursor:pointer;
-    }
-    .filter-select:hover, .filter-select:focus {
-      background-color:rgba(17,82,108,.42);
-      outline:none;
-      box-shadow:none;
-    }
-    .filter-select option { color:#173d51; background:white; font-family:var(--font-ui); }
-
-    .reset-btn {
-      margin:9px 0 0 24px;
-      align-self:flex-start;
-      padding:6px 0;
-      border:0;
-      color:rgba(255,255,255,.78);
-      background:transparent;
-      font-family:var(--font-condensed);
-      font-size:13px;
-      letter-spacing:.13em;
-      text-transform:uppercase;
-    }
-    .reset-btn:hover { color:white; text-decoration:underline; }
-    .reset-btn:disabled { opacity:.28; text-decoration:none; cursor:default; }
-
-    .legend {
-      margin:34px 20px 0;
-      padding-top:18px;
-      border-top:1px solid rgba(255,255,255,.45);
-      display:flex;
-      align-items:center;
-      gap:9px;
-      flex-wrap:wrap;
-      color:rgba(255,255,255,.82);
-      font-family:var(--font-condensed);
-      font-size:12px;
-      letter-spacing:.04em;
-    }
-    .legend-label { width:100%; font-weight:600; letter-spacing:.13em; text-transform:uppercase; }
-    .legend-dot { border:2px solid rgba(255,255,255,.95); box-shadow:0 2px 5px rgba(18,53,69,.25); }
-    .legend-dot.s1,.legend-dot.s2,.legend-dot.s3,.legend-dot.s4 { background:#1f5875; }
-
-    /* Small introductory card rather than a full-width band */
-    .intro {
-      position:absolute;
-      z-index:980;
-      right:22px;
-      bottom:24px;
-      width:min(520px, calc(100vw - var(--panel-w) - 50px));
-      padding:14px 18px;
-      background:rgba(246,242,235,.88);
-      border:1px solid rgba(255,255,255,.75);
-      box-shadow:0 5px 22px rgba(24,63,84,.12);
-      color:#31586a;
-      font-family:var(--font-condensed);
-      font-size:14px;
-      line-height:1.45;
-      letter-spacing:.025em;
-      backdrop-filter:blur(4px);
-    }
-    .intro p { margin:0; max-width:none; }
-    .intro strong { color:var(--whitaker-deeper); font-weight:700; }
-
-    /* Whitaker-style clusters and markers */
-    .cluster-icon {
-      background:#1f5875;
-      color:white;
-      border-radius:50%;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-family:var(--font-ui);
-      font-weight:600;
-      border:3px solid rgba(255,255,255,.9);
-      box-shadow:0 3px 12px rgba(16,58,80,.38);
-      transition:transform .15s var(--ease);
-    }
-    .cluster-icon:hover { transform:scale(1.07); }
-    .cluster-icon.s-sm { width:35px; height:35px; font-size:12px; }
-    .cluster-icon.s-md { width:44px; height:44px; font-size:13px; }
-    .cluster-icon.s-lg { width:54px; height:54px; font-size:15px; }
-    .marker-cluster-small,.marker-cluster-medium,.marker-cluster-large,
-    .marker-cluster-small div,.marker-cluster-medium div,.marker-cluster-large div { background:transparent !important; }
-
-    /* Institution details become a left archival panel */
-    .sidebar {
-      position:absolute;
-      z-index:1250;
-      top:0; left:0; bottom:0;
-      width:var(--panel-w);
-      background:rgba(42,104,129,.91);
-      color:white;
-      border:0;
-      box-shadow:6px 0 22px rgba(24,63,84,.16);
-      transform:translateX(-100%);
-      transition:transform .32s var(--ease);
-      overflow-y:auto;
-      backdrop-filter:blur(3px);
-    }
-    .sidebar.is-open { transform:translateX(0); }
-    .sidebar-close {
-      position:sticky;
-      top:18px;
-      margin-left:14px;
-      width:34px; height:34px;
-      border-radius:0;
-      background:transparent;
-      color:white;
-      font-size:27px;
-      line-height:1;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      z-index:3;
-    }
-    .sidebar-close:hover { background:rgba(255,255,255,.08); }
-    .sidebar-body { padding:36px 34px 44px; }
-    .sb-eyebrow {
-      margin-bottom:17px;
-      font-family:var(--font-condensed);
-      color:rgba(255,255,255,.8);
-      font-size:12px;
-      font-weight:600;
-      letter-spacing:.15em;
-      text-transform:uppercase;
-    }
-    .sb-eyebrow .dot { border:1px solid rgba(255,255,255,.9); }
-    .sb-title {
-      margin:0 0 18px;
-      padding:0;
-      color:white;
-      font-family:var(--font-condensed);
-      font-size:27px;
-      font-weight:700;
-      line-height:1.12;
-      letter-spacing:.09em;
-      text-align:center;
-    }
-    .sb-location {
-      margin:0 0 24px;
-      color:white;
-      font-family:var(--font-condensed);
-      font-size:13px;
-      font-style:normal;
-      font-weight:600;
-      letter-spacing:.16em;
-      text-transform:uppercase;
-    }
-    .sb-description {
-      margin:0 0 25px;
-      color:rgba(255,255,255,.94);
-      font-family:var(--font-condensed);
-      font-size:15px;
-      line-height:1.45;
-      letter-spacing:.055em;
-    }
-    .sb-stats { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:0 0 26px; }
-    .stat-chip {
-      min-width:0;
-      padding:10px 11px;
-      background:rgba(20,77,101,.35);
-      border:1px solid rgba(255,255,255,.2);
-      border-left:0;
-      border-radius:4px;
-    }
-    .stat-chip dt {
-      color:rgba(255,255,255,.7);
-      font-family:var(--font-condensed);
-      font-size:10px;
-      letter-spacing:.14em;
-    }
-    .stat-chip dd {
-      color:white;
-      font-family:var(--font-condensed);
-      font-size:18px;
-      letter-spacing:.05em;
-    }
-    .sb-section { margin-bottom:25px; }
-    .sb-section-title {
-      color:white;
-      font-family:var(--font-condensed);
-      font-size:13px;
-      letter-spacing:.17em;
-      font-weight:700;
-      text-transform:uppercase;
-      margin:0 0 10px;
-    }
-    .theme-list { gap:5px; }
-    .theme-tag {
-      color:white;
-      background:rgba(20,77,101,.34);
-      border:1px solid rgba(255,255,255,.22);
-      font-family:var(--font-condensed);
-      font-size:12px;
-      letter-spacing:.04em;
-    }
-    .project-list { font-family:var(--font-condensed); font-size:14px; }
-    .project-list li {
-      color:rgba(255,255,255,.95);
-      border-bottom:1px solid rgba(255,255,255,.14);
-      line-height:1.35;
-      letter-spacing:.05em;
-    }
-    .project-list li::before { background:rgba(255,255,255,.7); }
-    .project-list li.project-more { color:rgba(255,255,255,.65); }
-    .sb-address {
-      background:rgba(20,77,101,.28);
-      color:rgba(255,255,255,.9);
-      border:1px solid rgba(255,255,255,.16);
-      font-family:var(--font-condensed);
-      letter-spacing:.04em;
-    }
-    .sb-address-label { color:rgba(255,255,255,.62); font-family:var(--font-condensed); }
-    .sb-cta {
-      background:rgba(20,77,101,.58);
-      color:white;
-      border:1px solid rgba(255,255,255,.25);
-      border-radius:6px;
-      font-family:var(--font-condensed);
-      font-size:14px;
-      letter-spacing:.08em;
-      text-transform:uppercase;
-    }
-    .sb-cta:hover { background:rgba(17,72,95,.82); color:white; text-decoration:none; }
-
-    .loading {
-      position:absolute;
-      inset:0;
-      z-index:1400;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      background:var(--whitaker-map);
-      color:var(--whitaker-deeper);
-      font-family:var(--font-condensed);
-      font-size:22px;
-      letter-spacing:.12em;
-      text-transform:uppercase;
-    }
-    .loading.is-error { color:#8c3e31; }
-    .empty-overlay {
-      position:absolute;
-      z-index:1100;
-      top:calc(var(--header-h) + 20px);
-      left:calc(var(--panel-w) + 20px);
-      transform:none;
-      display:none;
-      padding:10px 14px;
-      background:rgba(246,242,235,.94);
-      color:var(--whitaker-deeper);
-      box-shadow:0 4px 16px rgba(24,63,84,.14);
-      font-family:var(--font-condensed);
-      letter-spacing:.04em;
-    }
-    .empty-overlay.is-visible { display:block; }
-
-    .sidebar::-webkit-scrollbar { width:6px; }
-    .sidebar::-webkit-scrollbar-track { background:transparent; }
-    .sidebar::-webkit-scrollbar-thumb { background:rgba(255,255,255,.28); border-radius:3px; }
-
-    @media (max-width: 760px) {
-      :root { --header-h:72px; --panel-w:100%; }
-      .site-header { left:0; height:var(--header-h); pointer-events:none; }
-      .brand-text { font-size:17px; letter-spacing:.22em; }
-      .brand-text em { font-size:10px; margin-top:6px; }
-      .stats { display:none; }
-      .filter-bar {
-        top:var(--header-h); bottom:auto;
-        width:100%; height:auto;
-        padding:11px 12px 10px;
-        flex-direction:row;
-        flex-wrap:wrap;
-        gap:8px;
-        background:rgba(46,111,135,.92);
-      }
-      .filter-bar::after { display:none; }
-      .search-wrap { width:100%; margin:0; flex:1 0 100%; }
-      .search-input { height:34px; }
-      .filter-select { flex:1 1 calc(50% - 4px); min-height:36px; margin:0; padding:8px 31px 8px 12px; font-size:13px; border-radius:6px; }
-      .reset-btn { margin:0 0 0 2px; padding:8px; }
-      .legend { display:none; }
-      .intro { display:none; }
-      .leaflet-control-zoom { margin-top:155px !important; }
-      .sidebar {
-        top:auto; left:0; right:0; bottom:0;
-        width:100%; height:78vh;
-        transform:translateY(100%);
-        border-radius:16px 16px 0 0;
-      }
-      .sidebar.is-open { transform:translateY(0); }
-      .sidebar-close { position:absolute; top:10px; right:12px; left:auto; margin:0; }
-      .sidebar-body { padding:34px 24px 36px; }
-      .empty-overlay { top:165px; left:12px; right:12px; text-align:center; }
-    }
-  </style>
-
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EverydayBME: Whitaker International Host Map</title>
+<meta name="description" content="An archival map of international biomedical engineering host institutions, 2005–2017. Explore Whitaker institutions, research themes, and example projects.">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--teal:#285d73;--deep:#17485e;--water:#b4d3df;--cream:#f6f3ec;--rail:350px;--header:94px;--line:rgba(255,255,255,.25);--body:'Public Sans',system-ui,sans-serif;--display:'Barlow Condensed','Arial Narrow',sans-serif}
+*{box-sizing:border-box}html,body{height:100%;margin:0}body{font:14px/1.65 var(--body);color:white;background:var(--water);overflow:hidden}button,input{font:inherit}button,a,input{-webkit-tap-highlight-color:transparent}button{cursor:pointer}button{color:inherit}button:disabled{cursor:default;opacity:.5}a{color:inherit;text-underline-offset:4px}button:focus-visible,a:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:3px solid #ffda8b;outline-offset:3px}button{border:0;background:none}h1,h2,h3,p{margin-top:0}h2{font:600 32px/1.15 var(--display);letter-spacing:.025em;margin-bottom:16px}h3{font:600 19px/1.3 var(--display);letter-spacing:.07em;text-transform:uppercase;margin:28px 0 10px}[hidden]{display:none!important}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.skip{position:fixed;top:-80px;left:12px;z-index:3000;padding:10px;background:var(--deep)}.skip:focus{top:10px}
+#map{position:absolute;inset:0;background:var(--water)}.site-header{height:var(--header);position:absolute;inset:0 0 auto;z-index:800;background:rgba(56,111,135,.84);backdrop-filter:blur(5px);display:flex;align-items:center;padding:16px 30px 16px calc(var(--rail) + 32px);border-bottom:1px solid var(--line)}.identity{width:100%;text-align:center}.identity h1{font:600 27px/1.1 var(--display);letter-spacing:.19em;text-transform:uppercase;margin:0 0 7px}.identity p{font-size:11px;letter-spacing:.06em;margin:0}.brand{position:absolute;left:26px;top:25px;font:600 22px var(--display);letter-spacing:.05em}.brand small{display:block;font:10px var(--body);letter-spacing:.14em;text-transform:uppercase}.mobile-toggle{display:none}
+.rail{position:absolute;top:var(--header);left:0;bottom:0;width:var(--rail);z-index:850;display:flex;flex-direction:column;background:rgba(37,91,114,.94);backdrop-filter:blur(5px);border-right:1px solid var(--line);box-shadow:8px 0 30px #17485e12}.search-area{padding:22px 24px 15px;border-bottom:1px solid var(--line)}.search-box{position:relative}.search-box input{width:100%;height:44px;border:1px solid #ffffffa8;border-radius:24px;background:#17485e30;color:white;padding:0 40px 0 17px;outline-offset:3px}.search-box input::placeholder{color:#e1eef2;opacity:1}.search-symbol{position:absolute;right:16px;top:9px;pointer-events:none;font-size:20px}.search-caption{font-size:11px;margin:9px 0 0;color:#e1edf2}.filters{padding:0 24px}.filters:has(button){padding-top:12px;padding-bottom:12px;border-bottom:1px solid var(--line)}.filter-chip{display:inline-block;max-width:100%;text-align:left;border:1px solid #ffffff80;border-radius:5px;padding:6px 10px;margin:3px 3px 3px 0;font-size:12px;overflow-wrap:anywhere}.filter-chip:hover{background:#ffffff20}.clear{font-size:12px;text-decoration:underline;padding:8px 0}.panel{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:24px;scrollbar-color:#96bbc9 transparent}.back{display:flex;align-items:center;gap:10px;padding:8px 0;margin:-7px 0 21px;font-size:12px}.back span{font-size:23px;line-height:1}.eyebrow{font:600 13px var(--display);text-transform:uppercase;letter-spacing:.15em;color:#d0e5ed;margin-bottom:10px}.nav-list{display:grid;gap:9px;margin:0 -10px 32px}.nav-item{display:flex;align-items:center;justify-content:space-between;text-align:left;min-height:49px;border-radius:6px;padding:10px 12px;font:600 22px var(--display);letter-spacing:.09em;text-transform:uppercase}.nav-item:hover{background:#17485e90}.nav-item span:last-child{font:22px var(--body);opacity:.7}.home-note{padding-top:22px;border-top:1px solid var(--line);color:#edf6f9;font-size:13px}.home-note h2{font-size:27px;letter-spacing:0}.home-note p{margin-bottom:12px}.result-row{width:100%;display:flex;align-items:center;gap:13px;text-align:left;padding:16px 0;border-bottom:1px solid var(--line)}.result-row:hover{background:#ffffff0d}.result-row .row-text{flex:1;min-width:0}.result-row strong{display:block;font-size:14px;font-weight:600;line-height:1.5}.result-row small{display:block;font-size:11px;color:#dfedf2;line-height:1.6;margin-top:5px}.count{display:flex;flex:none;align-items:center;justify-content:center;min-width:32px;height:32px;border-radius:50%;background:var(--deep);font-size:12px;padding:0 8px}.list-note{font-size:12px;color:#e1edf2;margin-bottom:8px}.section-search{width:100%;height:44px;background:#ffffff14;color:white;border:1px solid #ffffff80;border-radius:4px;padding:10px;margin:6px 0 10px}.section-search::placeholder{color:#dcebf1}.panel-footer{padding:12px 24px;border-top:1px solid var(--line);background:#17485e38;font-size:11px}.panel-footer strong{font-size:14px}.detail-title{font-size:31px;overflow-wrap:anywhere}.location{font:600 15px var(--display);letter-spacing:.12em;text-transform:uppercase;color:#dbedf4}.detail-stats{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:20px 0;margin:22px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.detail-stats dt{font-size:10px;text-transform:uppercase;letter-spacing:.07em}.detail-stats dd{margin:4px 0 0;font:500 30px/1.1 var(--display)}.detail-stats div:last-child dd{font-size:21px;margin-top:10px}.project-list{padding-left:19px;font-size:13px}.project-list li{padding-left:3px;margin:0 0 15px}.theme-button{display:inline-block;text-align:left;border:1px solid #ffffff70;border-radius:4px;padding:6px 9px;margin:0 5px 7px 0;font-size:11px}.theme-button:hover{background:#ffffff20}.external{display:block;margin:25px 0 10px;border-top:1px solid var(--line);padding-top:17px}.archive-note{font-size:11px;border-top:1px solid var(--line);margin-top:30px;padding-top:18px;color:#dcebf1}.legend{position:absolute;right:22px;bottom:32px;z-index:600;background:rgba(249,248,243,.95);color:var(--deep);padding:12px 16px;border:1px solid #285d7320;border-radius:5px;box-shadow:0 3px 15px #17485e10;font-size:11px}.legend-title{font-weight:700;margin-bottom:7px}.legend-scale{display:flex;align-items:center;gap:12px}.legend-scale span{display:flex;align-items:center;gap:4px}.legend i{display:inline-block;border-radius:50%;background:#285d73;border:1px solid white}.legend p{font-size:10px;margin:7px 0 0}.map-tools{position:absolute;right:22px;top:calc(var(--header) + 95px);z-index:700}.map-tools button{height:40px;background:var(--cream);color:var(--deep);border:1px solid #285d7330;border-radius:4px;padding:0 12px;font-size:12px}.leaflet-top{top:calc(var(--header) + 12px)}.leaflet-right .leaflet-control{margin-right:22px}.leaflet-control-zoom{border:1px solid #285d7330!important;box-shadow:none!important}.leaflet-control-zoom a{background:var(--cream)!important;color:var(--deep)!important;width:36px!important;height:36px!important;line-height:36px!important}.leaflet-control-attribution{font-size:10px!important;background:#f6f3ecee!important;color:var(--deep)!important}.leaflet-container{font-family:var(--body)}.leaflet-tile-pane{filter:saturate(.42) brightness(1.04)}.map-dot,.cluster-icon{display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--teal);border:2px solid white;color:white;box-shadow:0 2px 7px #12394e55}.cluster-icon{width:100%;height:100%;font-weight:600;font-size:14px;border:3px solid #fff}.map-dot{width:100%;height:100%}.selected .map-dot{outline:4px solid #e7bc61;outline-offset:3px}.marker-wrapper{background:none;border:0}.leaflet-tooltip{color:var(--deep);font-family:var(--body);max-width:250px;white-space:normal}.status-message{position:absolute;top:calc(var(--header) + 24px);left:calc(var(--rail) + 25px);right:90px;z-index:750;max-width:470px;background:var(--cream);color:var(--deep);padding:16px 20px;border-radius:5px;box-shadow:0 3px 18px #17485e20}.status-message button{color:var(--deep);text-decoration:underline;padding:4px}.empty{padding:20px 0}.empty button{text-decoration:underline;padding:10px 0}noscript{position:fixed;inset:110px 20px auto;z-index:2000;background:var(--cream);color:var(--deep);padding:25px}
+@media(min-width:1450px){:root{--rail:380px}.panel{padding:30px}.nav-item{font-size:24px}}
+@media(max-width:760px){:root{--header:76px;--rail:100%}.site-header{padding:12px 85px 12px 16px}.identity{text-align:left}.identity h1{font-size:21px;letter-spacing:.08em;margin:0 0 4px}.identity p{font-size:9px;letter-spacing:0;line-height:1.4}.brand{display:none}.mobile-toggle{display:block;position:absolute;right:12px;top:19px;padding:8px 12px;border:1px solid #ffffff90;border-radius:4px;font-size:12px}.rail{top:auto;height:52%;height:52dvh;bottom:0;border-top:1px solid var(--line);border-right:0}.rail.is-collapsed{display:none}.search-area{padding:12px 18px 9px}.search-caption{display:none}.search-box input{height:40px}.search-symbol{top:7px}.panel{padding:17px 22px}.panel-footer{padding:8px 22px}.filters{padding:0 22px}.filters:has(button){padding-top:4px;padding-bottom:4px}.filter-chip{font-size:10px;padding:3px 7px}.nav-list{gap:3px;margin-bottom:20px}.nav-item{font-size:21px;min-height:43px}.home-note{padding-top:16px}.legend{right:12px;bottom:calc(52dvh + 10px);padding:6px 9px;font-size:9px}.legend-title{margin-bottom:2px}.legend p{display:none}.legend-scale{gap:8px}.rail.is-collapsed~.legend{bottom:30px}.map-tools{right:12px;top:calc(var(--header) + 95px)}.leaflet-right .leaflet-control{margin-right:12px}.leaflet-bottom{bottom:52dvh}.panel-collapsed .leaflet-bottom{bottom:0}.status-message{top:calc(var(--header) + 12px);left:12px;right:70px;font-size:12px}.back{margin-bottom:12px}.detail-title{font-size:27px}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+</style>
 </head>
 <body>
-
-<div class="app">
-
-  <header class="site-header">
-    <div class="brand">
-      <span class="brand-mark">W</span>
-      <span class="brand-text">WHITAKER <em>INTERNATIONAL</em></span>
-    </div>
-    <div class="stats">
-      <span id="statsText">Loading…</span>
-    </div>
-  </header>
-
-  <section class="intro" aria-label="About this map">
-    <p>
-      This map plots <strong>215 universities and research institutes worldwide</strong> that hosted US biomedical engineering students through the <strong>Whitaker International Program (2005–2017)</strong>. Click any marker to see the lab's research focus and the project titles past fellows worked on. Institutions that have welcomed multiple Whitaker fellows are particularly good starting points if you're trying to build your own study or research-abroad opportunity — they have a track record of saying yes.
-    </p>
-  </section>
-
-  <div class="filter-bar" role="toolbar" aria-label="Filter institutions">
-    <div class="search-wrap">
-      <input type="search" class="search-input" id="searchInput"
-             placeholder="Search by institution, city, country, or keyword…"
-             aria-label="Search" />
-    </div>
-    <select class="filter-select" id="countryFilter" aria-label="Filter by country">
-      <option value="">All countries</option>
-    </select>
-    <select class="filter-select" id="themeFilter" aria-label="Filter by research theme">
-      <option value="">All research themes</option>
-    </select>
-    <button class="reset-btn" id="resetBtn" disabled>Reset</button>
-
-    <div class="legend" aria-label="Marker size legend">
-      <span class="legend-label">Grantees hosted</span>
-      <span class="legend-item"><span class="legend-dot s1"></span>1</span>
-      <span class="legend-item"><span class="legend-dot s2"></span>2–5</span>
-      <span class="legend-item"><span class="legend-dot s3"></span>6–15</span>
-      <span class="legend-item"><span class="legend-dot s4"></span>16+</span>
-    </div>
-  </div>
-
-  <main class="map-stage">
-    <div id="map" aria-label="World map of Whitaker host institutions"></div>
-
-    <div class="empty-overlay" id="emptyOverlay">
-      No institutions match your filters. <a href="#" id="clearLink">Clear filters</a>.
-    </div>
-
-    <aside class="sidebar" id="sidebar" aria-live="polite">
-      <button class="sidebar-close" id="sidebarClose" aria-label="Close panel">&#8592;</button>
-      <div class="sidebar-body" id="sidebarBody"></div>
-    </aside>
-
-    <div class="loading" id="loading">Loading institution data…</div>
-  </main>
-
-</div>
-
-<!-- ======================================================================
-     LIBRARIES
-     ====================================================================== -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-        crossorigin=""></script>
+<a class="skip" href="#searchInput">Skip to institution search</a>
+<main aria-label="Whitaker International Host Map">
+<div id="map" aria-label="Interactive map of host institutions" tabindex="0"></div>
+<header class="site-header"><div class="brand">EverydayBME<small>An international archive</small></div><div class="identity"><h1>Whitaker International <span class="sr-only">Host Map</span></h1><p>An archival map of international biomedical engineering host institutions, 2005–2017</p></div><button id="mobileToggle" class="mobile-toggle" aria-controls="rail" aria-expanded="true">Map</button></header>
+<aside class="rail" id="rail" aria-label="Explore the archive">
+<div class="search-area"><label class="sr-only" for="searchInput">Search all institutions, places, and research</label><div class="search-box"><input id="searchInput" type="search" placeholder="Search the archive" autocomplete="off"><span class="search-symbol" aria-hidden="true">⌕</span></div><p class="search-caption">Institutions, places &amp; research</p></div>
+<div class="filters" id="activeFilters" aria-label="Active filters"></div>
+<div class="panel" id="panel"></div>
+<div class="panel-footer" id="statsText" role="status" aria-live="polite">Loading the archive…</div>
+</aside>
+<div class="legend" aria-label="Map key"><div class="legend-title">Grantees hosted</div><div class="legend-scale"><span><i style="width:8px;height:8px"></i>1</span><span><i style="width:12px;height:12px"></i>2–5</span><span><i style="width:18px;height:18px"></i>6–15</span><span><i style="width:24px;height:24px"></i>16+</span></div><p>Numbered circles group institutions. Click to explore.</p></div>
+<div class="map-tools"><button id="fitMap" aria-label="Fit all matching institutions on the map">Fit results</button></div>
+<div class="status-message" id="loadStatus" role="status">Loading institution data…</div>
+</main>
+<noscript>This interactive archive needs JavaScript. Please enable it to browse institutions and the map.</noscript>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-
 <script>
-/* =========================================================================
-   CONSTANTS
-   ========================================================================= */
+'use strict';
 const CSV_URL = 'Sheet2_Institutions_for_Map.csv';
 
 const COUNTRY_NAMES = {
@@ -655,389 +119,143 @@ function escapeHtml(s) {
   }[c]));
 }
 
-/* =========================================================================
-   STATE
-   ========================================================================= */
-let allInstitutions = [];   // parsed + enriched records
-let markerById = new Map(); // id -> Leaflet marker
-let map, clusterGroup;
-let activeId = null;
-
-/* =========================================================================
-   MAP INITIALIZATION
-   ========================================================================= */
-function initMap() {
-  map = L.map('map', {
-    worldCopyJump: true,
-    minZoom: 2,
-    maxZoom: 16,
-    zoomControl: false,
-    attributionControl: true,
-    preferCanvas: true   // faster for many circle markers
-  }).setView([25, 10], 2);
-
-  L.control.zoom({ position: 'topright' }).addTo(map);
-
-  // OpenStreetMap tiles — no API key, free.
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    maxZoom: 19
-  }).addTo(map);
-
-  clusterGroup = L.markerClusterGroup({
-    showCoverageOnHover: false,
-    spiderfyOnMaxZoom: true,
-    maxClusterRadius: 50,
-    iconCreateFunction: function (cluster) {
-      const count = cluster.getChildCount();
-      let sizeClass = 's-sm';
-      if (count >= 25) sizeClass = 's-lg';
-      else if (count >= 8) sizeClass = 's-md';
-      return L.divIcon({
-        html: `<div class="cluster-icon ${sizeClass}">${count}</div>`,
-        className: 'cluster-wrapper',
-        iconSize: [40, 40]
-      });
-    }
-  });
-  map.addLayer(clusterGroup);
+// Navigation and filters are independent: Back changes panels without clearing filters.
+const $ = id => document.getElementById(id);
+const state = {view:'home',history:[],query:'',country:'',theme:'',listQuery:'',activeId:null};
+let allInstitutions=[], filtered=[], map, clusters;
+const markers=new Map();
+const mobile=()=>window.matchMedia('(max-width:760px)').matches;
+const animate=()=>!window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+const e=escapeHtml;
+const INTRO='This map documents the global reach of the Whitaker International Program by highlighting the universities, laboratories, hospitals, and research institutes that hosted U.S. biomedical engineering fellows from 2005–2017. Click any institution to explore the research areas, laboratories, and example projects pursued by past fellows. Many of these institutions developed lasting relationships with Whitaker trainees over multiple years and may continue to serve as welcoming starting points for students seeking international biomedical engineering research experiences today.';
+function navButton(view,label){return `<button class="nav-item" data-view="${view}"><span>${label}</span><span aria-hidden="true">›</span></button>`;}
+function setPanelOpen(open){$('rail').classList.toggle('is-collapsed',!open);document.body.classList.toggle('panel-collapsed',!open);$('mobileToggle').setAttribute('aria-expanded',String(open));$('mobileToggle').textContent=open?'Map':'Explore';}
+function navigate(view,{remember=true}={}){
+ if(remember)state.history.push({view:state.view,listQuery:state.listQuery,activeId:state.activeId,scroll:$('panel').scrollTop});
+ state.view=view;state.listQuery='';state.activeId=null;updateSelection();renderPanel();setPanelOpen(true);focusHeading();
 }
-
-/* =========================================================================
-   DATA LOADING
-   ========================================================================= */
-function loadData() {
-  Papa.parse(CSV_URL, {
-    download: true,
-    header: true,
-    skipEmptyLines: true,
-    complete: function (results) {
-      if (!results.data || results.data.length === 0) {
-        showError('No data rows found in the CSV.');
-        return;
-      }
-      processData(results.data);
-    },
-    error: function (err) {
-      console.error(err);
-      showError(
-        'Could not load the CSV. If you opened this file directly from your hard drive, ' +
-        'browsers block local fetches — try running a tiny local server with ' +
-        '<code>python -m http.server</code> in this folder, or upload to Netlify / GitHub Pages.'
-      );
-    }
-  });
+function goBack(){const prev=state.history.pop();Object.assign(state,prev||{view:'home',listQuery:'',activeId:null});updateSelection();renderPanel();$('panel').scrollTop=prev?.scroll||0;focusHeading();}
+function focusHeading(){$('panel').querySelector('h2')?.focus({preventScroll:true});}
+function panelHead(title){return `<button class="back" data-action="back"><span aria-hidden="true">←</span> Back</button><h2 tabindex="-1">${e(title)}</h2>`;}
+function renderPanel(){
+ const panel=$('panel');panel.scrollTop=0;
+ if(state.view==='home'){
+ panel.innerHTML=`<nav aria-label="Explore by">${'<div class="nav-list">'+navButton('institutions','Institutions')+navButton('countries','Countries')+navButton('themes','Research Themes')+navButton('stories','Featured Stories')+navButton('about','About')+'</div>'}</nav><div class="home-note"><div class="eyebrow">2005–2017 · A global legacy</div><h2 tabindex="-1">Explore a world of biomedical engineering.</h2><p>Discover the institutions that welcomed Whitaker fellows and the research they pursued.</p><p>Select a circle on the map, or explore the archive above.</p></div>`;
+ }else if(state.view==='institutions'){
+ panel.innerHTML=panelHead('Institutions')+'<p class="list-note">Search above to narrow the archive. Small counts show grantees hosted.</p><div id="listResults"></div>';renderList();
+ }else if(state.view==='countries'||state.view==='themes'){
+ const label=state.view==='countries'?'Countries':'Research Themes';
+ panel.innerHTML=panelHead(label)+`<label class="sr-only" for="listSearch">Find ${label.toLowerCase()}</label><input class="section-search" type="search" id="listSearch" placeholder="Find ${label.toLowerCase()}" value="${e(state.listQuery)}"><p class="list-note">Counts show institutions matching your other filters.</p><div id="listResults" aria-live="polite"></div>`;renderList();
+ }else if(state.view==='detail'){renderDetail();
+ }else if(state.view==='stories'){
+ panel.innerHTML=panelHead('Featured Stories')+'<div class="eyebrow">From the archive</div><p>Behind every institution is a story of international research, collaboration, and discovery.</p><p>Whitaker fellow interviews and photographs will appear here as they are prepared for the archive.</p><p class="list-note">No interviews are published in this section yet.</p><button class="theme-button" data-view="institutions">Explore host institutions →</button>';
+ }else if(state.view==='about'){
+ panel.innerHTML=panelHead('About this project')+`<div class="eyebrow">EverydayBME</div><p>${INTRO}</p><h3>About &amp; provenance</h3><p>EverydayBME is a digital archival initiative created through the Whitaker International Program Concluding Initiative Grants. The project extends the original “Biomedical Engineers of the World” initiative, which sought to document and share the experiences of Whitaker fellows and their international host institutions through interviews, photography, and storytelling.</p><p>This archive maps the international institutions that hosted Whitaker fellows between 2005–2017 and aims to preserve the program’s global legacy while helping future biomedical engineering trainees identify institutions with established histories of international collaboration and mentorship.</p><p>Institutional summaries were assembled from Whitaker records, institutional websites, publications, and publicly available online sources.</p><h3>How to use this map</h3><p>Use the search and filters to explore institutions by country or research area. Click any marker to view example Whitaker projects, research themes, and institutional details. Many institutions hosted multiple fellows over time, indicating established histories of international collaboration and mentorship.</p><p>Numbered circles represent groups of institutions. Individual circle sizes indicate grantees hosted. Country and research-theme filters can be combined; remove a filter using its × button.</p><h3>Contributions</h3><p>Alumni contributions, corrections, and historical materials are welcome.</p><footer class="archive-note"><p>EverydayBME — Whitaker International Host Map</p><p>Built through the Whitaker Concluding Initiative Grants.<br>Hosted via GitHub Pages.<br><a href="https://github.com/everydaybme/Whitaker-map" target="_blank" rel="noopener noreferrer">View source on GitHub ↗</a></p><p>This is an independently maintained archival project and is not an official website of the Whitaker Foundation.</p></footer>`;
+ }
 }
-
-function showError(message) {
-  const el = document.getElementById('loading');
-  el.classList.add('is-error');
-  el.innerHTML = message;
+function matches(i,ignore=''){
+ return (ignore==='country'||!state.country||i.countryName===state.country)&&(ignore==='theme'||!state.theme||i.themes.includes(state.theme))&&(!state.query||i.searchText.includes(state.query.toLowerCase().trim()));
 }
-
-function processData(rows) {
-  // Normalize each row into a structured record
-  allInstitutions = rows.map((r, idx) => {
-    const lat = parseFloat(r.Latitude);
-    const lng = parseFloat(r.Longitude);
-    if (isNaN(lat) || isNaN(lng)) return null;
-
-    const grantees = parseInt(r['Grantees Hosted'], 10) || 0;
-    const projects = (r['Example Project Titles'] || '')
-      .split('|')
-      .map(s => s.trim())
-      .filter(Boolean);
-    const themes = extractThemes(r.Description || '');
-    const countryCode = (r.Country || '').trim();
-    const countryName = COUNTRY_NAMES[countryCode] || countryCode;
-
-    return {
-      id: 'i' + idx,
-      institution: r.Institution || '',
-      city: r.City || '',
-      countryCode,
-      countryName,
-      address: r.Address || '',
-      description: r.Description || '',
-      grantees,
-      yearsActive: r['Years Active'] || '',
-      projects,
-      themes,
-      lat,
-      lng,
-      bucket: bucketFor(grantees)
-    };
-  }).filter(Boolean);
-
-  // Sort smallest pins first so big ones draw on top
-  allInstitutions.sort((a, b) => a.grantees - b.grantees);
-
-  buildCountryFilter();
-  buildThemeFilter();
-  buildMarkers();
-  fitMapToMarkers();
-  updateStats(allInstitutions.length, allInstitutions.length);
-
-  document.getElementById('loading').style.display = 'none';
+function renderList(){
+ const el=$('listResults');if(!el)return;
+ if(state.view==='institutions'){
+ el.innerHTML=[...filtered].sort((a,b)=>a.institution.localeCompare(b.institution)).map(i=>`<button class="result-row" data-institution="${i.id}"><span class="row-text"><strong>${e(i.institution)}</strong><small>${e([i.city,i.countryName].filter(Boolean).join(', '))}</small></span><span class="count" aria-label="${i.grantees} grantees hosted">${i.grantees}</span></button>`).join('');
+ }else{
+ const country=state.view==='countries', counts=new Map();
+ allInstitutions.filter(i=>matches(i,country?'country':'theme')).forEach(i=>(country?[i.countryName]:i.themes).forEach(k=>counts.set(k,(counts.get(k)||0)+1)));
+ const entries=[...counts].filter(([name])=>name.toLowerCase().includes(state.listQuery.toLowerCase().trim())).sort((a,b)=>a[0].localeCompare(b[0]));
+ el.innerHTML=entries.map(([name,n])=>`<button class="result-row" data-${country?'country':'theme'}="${e(name)}" aria-pressed="${(country?state.country:state.theme)===name}"><span class="row-text"><strong>${e(country?name:titleCaseTheme(name))}</strong></span><span class="count" aria-label="${n} institutions">${n}</span></button>`).join('');
+ }
+ if(!el.innerHTML)el.innerHTML='<div class="empty"><p>No matches found. Try another search or remove a filter.</p><button data-action="reset">Clear all searches and filters</button></div>';
 }
-
-/* =========================================================================
-   MARKERS
-   ========================================================================= */
-function buildMarkers() {
-  allInstitutions.forEach(inst => {
-    const m = L.circleMarker([inst.lat, inst.lng], {
-      radius: inst.bucket.radius,
-      color: '#ffffff',
-      weight: 1.5,
-      fillColor: inst.bucket.color,
-      fillOpacity: 0.92,
-      bubblingMouseEvents: false
-    });
-    m.on('click', () => openSidebar(inst.id));
-    m.on('mouseover', function () {
-      this.setStyle({ weight: 2.5, radius: inst.bucket.radius + 2 });
-    });
-    m.on('mouseout', function () {
-      if (activeId !== inst.id) {
-        this.setStyle({ weight: 1.5, radius: inst.bucket.radius });
-      }
-    });
-    markerById.set(inst.id, m);
-  });
-  refreshClusterLayer(allInstitutions);
+function updateFilters({fit=false}={}){
+ filtered=allInstitutions.filter(i=>matches(i));
+ clusters.clearLayers();clusters.addLayers(filtered.map(i=>markers.get(i.id)));
+ $('activeFilters').innerHTML=(state.country?`<button class="filter-chip" data-remove="country" aria-label="Remove country filter: ${e(state.country)}">${e(state.country)} ×</button>`:'')+(state.theme?`<button class="filter-chip" data-remove="theme" aria-label="Remove theme filter: ${e(titleCaseTheme(state.theme))}">${e(titleCaseTheme(state.theme))} ×</button>`:'')+((state.query||state.country||state.theme)?'<button class="clear" data-action="reset">Clear all</button>':'');
+ const totalGrantees=filtered.reduce((sum,i)=>sum+i.grantees,0);
+ $('statsText').innerHTML=`<strong>${filtered.length}</strong>${filtered.length!==allInstitutions.length?' of '+allInstitutions.length:''} institutions · <strong>${new Set(filtered.map(i=>i.countryName)).size}</strong> countries<br>${totalGrantees.toLocaleString()} grantees hosted in these records`;
+ if(state.activeId&&!filtered.some(i=>i.id===state.activeId)){state.activeId=null;state.view='institutions';renderPanel();}
+ renderList();updateSelection();if(fit)fitResults();
 }
-
-function refreshClusterLayer(institutions) {
-  clusterGroup.clearLayers();
-  const markers = institutions.map(i => markerById.get(i.id)).filter(Boolean);
-  clusterGroup.addLayers(markers);
+function reset(){state.query='';state.country='';state.theme='';state.listQuery='';$('searchInput').value='';if($('listSearch'))$('listSearch').value='';updateFilters({fit:true});}
+function chooseFilter(key,value){state[key]=value;navigate('institutions');updateFilters({fit:true});}
+function updateSelection(){markers.forEach((m,id)=>m.getElement()?.classList.toggle('selected',id===state.activeId));}
+function openInstitution(id){
+ const i=allInstitutions.find(i=>i.id===id);if(!i)return;
+ if(state.view!=='detail')state.history.push({view:state.view,listQuery:state.listQuery,activeId:null,scroll:$('panel').scrollTop});
+ state.activeId=id;state.view='detail';setPanelOpen(true);renderPanel();focusHeading();
+ // Fit one point with asymmetric padding to center it in the unobscured map area.
+ const pad=mapPadding();map.fitBounds(L.latLngBounds([[i.lat,i.lng],[i.lat,i.lng]]),{...pad,maxZoom:12,animate:false});
+ clusters.zoomToShowLayer(markers.get(id),()=>{updateSelection();});
 }
-
-function fitMapToMarkers() {
-  if (allInstitutions.length === 0) return;
-  const bounds = L.latLngBounds(allInstitutions.map(i => [i.lat, i.lng]));
-  map.fitBounds(bounds, { padding: [40, 40], maxZoom: 5 });
+function renderDetail(){
+ const i=allInstitutions.find(i=>i.id===state.activeId);if(!i){state.view='institutions';renderPanel();return;}
+ $('panel').innerHTML=`<button class="back" data-action="back"><span aria-hidden="true">←</span> Back</button><div class="eyebrow">Host institution</div><h2 class="detail-title" tabindex="-1">${e(i.institution)}</h2><p class="location">${e([i.city,i.countryName].filter(Boolean).join(' · '))}</p><dl class="detail-stats"><div><dt>Grantees hosted</dt><dd>${i.grantees}</dd></div><div><dt>Years active</dt><dd>${e(i.yearsActive)||'Not recorded'}</dd></div></dl><p>${e(i.description)}</p>${i.themes.length?'<h3>Research themes</h3>'+i.themes.map(t=>`<button class="theme-button" data-theme="${e(t)}">${e(titleCaseTheme(t))}</button>`).join(''):''}<h3>Example Whitaker project titles</h3>${i.projects.length?'<ul class="project-list">'+i.projects.map(p=>`<li>${e(p)}</li>`).join('')+'</ul>':'<p>No project titles available.</p>'}${i.address?`<h3>Address</h3><p>${e(i.address)}</p>`:''}<a class="external" href="https://www.google.com/search?q=${encodeURIComponent(i.institution+' biomedical engineering')}" target="_blank" rel="noopener noreferrer">Find the institution’s website ↗</a><p class="list-note">Opens a web search in a new tab.</p>`;
 }
-
-/* =========================================================================
-   FILTER DROPDOWN POPULATION
-   ========================================================================= */
-function buildCountryFilter() {
-  const counts = new Map();
-  allInstitutions.forEach(i => {
-    counts.set(i.countryName, (counts.get(i.countryName) || 0) + 1);
-  });
-  const sorted = [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  const select = document.getElementById('countryFilter');
-  for (const [name, count] of sorted) {
-    const opt = document.createElement('option');
-    opt.value = name;
-    opt.textContent = `${name} (${count})`;
-    select.appendChild(opt);
-  }
+function mapPadding(){
+ const s=map.getSize(), open=!$('rail').classList.contains('is-collapsed');
+ return {paddingTopLeft:mobile()?[25,92]:[open?$('rail').offsetWidth+35:35,120],paddingBottomRight:mobile()?[48,open?$('rail').offsetHeight+35:55]:[65,90]};
 }
-
-function buildThemeFilter() {
-  const counts = new Map();
-  allInstitutions.forEach(i => {
-    i.themes.forEach(t => counts.set(t, (counts.get(t) || 0) + 1));
-  });
-  // Sort themes by frequency descending, then alphabetically
-  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  const select = document.getElementById('themeFilter');
-  for (const [theme, count] of sorted) {
-    const opt = document.createElement('option');
-    opt.value = theme;
-    opt.textContent = `${titleCaseTheme(theme)} (${count})`;
-    select.appendChild(opt);
-  }
+function fitResults(){if(filtered.length)map.fitBounds(L.latLngBounds(filtered.map(i=>[i.lat,i.lng])),{...mapPadding(),maxZoom:8,animate:animate()});}
+function initMap(){
+ map=L.map('map',{minZoom:0,maxZoom:18,zoomSnap:0.25,zoomControl:false,worldCopyJump:true}).setView([25,10],2);
+ L.control.zoom({position:'topright'}).addTo(map);
+ // Preserve the original OpenStreetMap source; the tile pane receives a muted palette.
+ const tiles=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',maxZoom:19}).addTo(map);
+ let tileErrors=0;
+ tiles.on('tileerror',()=>{if(++tileErrors===6){$('loadStatus').hidden=false;$('loadStatus').textContent='The background map is unavailable. You can still search and browse institution records.';}});
+ tiles.on('tileload',()=>{tileErrors=0;if($('loadStatus').textContent.startsWith('The background'))$('loadStatus').hidden=true;});
+ clusters=L.markerClusterGroup({showCoverageOnHover:false,spiderfyOnMaxZoom:true,maxClusterRadius:50,animate:animate(),iconCreateFunction:cluster=>{const n=cluster.getChildCount(),size=n>=25?52:n>=8?44:36;return L.divIcon({html:`<span class="cluster-icon" aria-label="${n} institutions. Zoom to explore">${n}</span>`,className:'cluster-wrapper',iconSize:[size,size]});}}).addTo(map);
+ map.on('moveend',updateSelection);
 }
-
-/* =========================================================================
-   FILTERING
-   ========================================================================= */
-function applyFilters() {
-  const q = document.getElementById('searchInput').value.trim().toLowerCase();
-  const country = document.getElementById('countryFilter').value;
-  const theme = document.getElementById('themeFilter').value;
-
-  const filtered = allInstitutions.filter(inst => {
-    if (country && inst.countryName !== country) return false;
-    if (theme && !inst.themes.includes(theme)) return false;
-    if (q) {
-      const hay = [
-        inst.institution, inst.city, inst.countryName, inst.description
-      ].join(' ').toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    return true;
-  });
-
-  refreshClusterLayer(filtered);
-  updateStats(filtered.length, allInstitutions.length);
-  document.getElementById('emptyOverlay').classList.toggle('is-visible', filtered.length === 0);
-
-  // Reset button availability
-  const anyActive = q || country || theme;
-  document.getElementById('resetBtn').disabled = !anyActive;
-
-  // If the active sidebar item is no longer visible, close the panel
-  if (activeId && !filtered.find(i => i.id === activeId)) {
-    closeSidebar();
-  }
+function loadData(){
+ $('loadStatus').hidden=false;$('loadStatus').textContent='Loading institution data…';
+ Papa.parse(CSV_URL,{download:true,header:true,skipEmptyLines:'greedy',complete:results=>{
+ const required=['Institution','Latitude','Longitude','Country','Description','Grantees Hosted'];
+ if(!required.every(k=>results.meta.fields?.includes(k))||!results.data.length){showError('The institution data could not be read. Check that the original CSV is alongside this page.');return;}
+ if(results.errors.some(err=>err.type==='Quotes'||err.type==='FieldMismatch')){showError('The CSV contains a formatting error. Please check the institution data and try again.');return;}
+ allInstitutions=results.data.map((r,index)=>{
+ const lat=Number(r.Latitude),lng=Number(r.Longitude);if(!String(r.Latitude||'').trim()||!String(r.Longitude||'').trim()||!Number.isFinite(lat)||!Number.isFinite(lng)||Math.abs(lat)>90||Math.abs(lng)>180)return null;
+ const countryCode=(r.Country||'').trim(),description=r.Description||'',grantees=Math.max(0,parseInt(r['Grantees Hosted'],10)||0);
+ const i={id:'i'+index,institution:r.Institution||'',lat,lng,city:r.City||'',countryName:COUNTRY_NAMES[countryCode]||countryCode,address:r.Address||'',description,grantees,yearsActive:r['Years Active']||'',themes:extractThemes(description),projects:(r['Example Project Titles']||'').split('|').map(p=>p.trim()).filter(Boolean),bucket:bucketFor(grantees)};
+ i.searchText=[i.institution,i.city,i.countryName,description,...i.projects].join(' ').toLowerCase();return i;
+ }).filter(Boolean);
+ if(!allInstitutions.length){showError('No institutions with valid map coordinates were found.');return;}
+ markers.clear();
+ allInstitutions.forEach(i=>{
+ const size=i.bucket.radius*2+6;
+ const m=L.marker([i.lat,i.lng],{title:`${i.institution}: ${i.grantees} grantees hosted`,alt:i.institution,keyboard:true,icon:L.divIcon({html:'<span class="map-dot"></span>',className:'marker-wrapper',iconSize:[size,size]})});
+ const label=document.createElement('span');label.textContent=`${i.institution} · ${i.grantees} grantees`;
+ m.bindTooltip(label,{direction:'top',offset:[0,-size/2]}).on('click',()=>openInstitution(i.id));
+ m.on('add',()=>{const el=m.getElement();if(el)el.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();openInstitution(i.id);}};});markers.set(i.id,m);
+ });
+ updateFilters({fit:true});$('loadStatus').hidden=true;
+ const skipped=results.data.length-allInstitutions.length;
+ if(skipped){$('loadStatus').textContent=`${skipped} records could not be mapped because their coordinates are missing or invalid.`;$('loadStatus').hidden=false;}
+ },error:()=>showError('Institution data could not load. Keep Sheet2_Institutions_for_Map.csv in the same folder as index.html and open the site through GitHub Pages or a local web server.')});
 }
-
-function updateStats(showing, total) {
-  const el = document.getElementById('statsText');
-  if (showing === total) {
-    el.innerHTML = `<strong>${total}</strong> institutions across <strong>${new Set(allInstitutions.map(i => i.countryName)).size}</strong> countries`;
-  } else {
-    el.innerHTML = `Showing <strong>${showing}</strong> of <strong>${total}</strong> institutions`;
-  }
-}
-
-function resetFilters() {
-  document.getElementById('searchInput').value = '';
-  document.getElementById('countryFilter').value = '';
-  document.getElementById('themeFilter').value = '';
-  applyFilters();
-  fitMapToMarkers();
-}
-
-/* =========================================================================
-   SIDEBAR
-   ========================================================================= */
-function openSidebar(id) {
-  const inst = allInstitutions.find(i => i.id === id);
-  if (!inst) return;
-
-  // Reset previously-active marker style
-  if (activeId && markerById.has(activeId)) {
-    const prev = allInstitutions.find(i => i.id === activeId);
-    if (prev) markerById.get(activeId).setStyle({
-      weight: 1.5, radius: prev.bucket.radius
-    });
-  }
-  activeId = id;
-  const m = markerById.get(id);
-  if (m) m.setStyle({ weight: 3, color: '#ffffff', radius: inst.bucket.radius + 2 });
-
-  const projectsHtml = inst.projects.length
-    ? `<ul class="project-list">
-         ${inst.projects.slice(0, 6).map(p => `<li>${escapeHtml(p)}</li>`).join('')}
-         ${inst.projects.length > 6
-           ? `<li class="project-more">…and ${inst.projects.length - 6} more.</li>`
-           : ''}
-       </ul>`
-    : `<p style="font-size:13px;color:var(--ink-faint);font-style:italic;margin:0;">No project titles available.</p>`;
-
-  const themesHtml = inst.themes.length
-    ? `<ul class="theme-list">
-         ${inst.themes.map(t =>
-           `<li class="theme-tag">${escapeHtml(titleCaseTheme(t))}</li>`
-         ).join('')}
-       </ul>`
-    : '';
-
-  const addressHtml = inst.address ? `
-    <div class="sb-address">
-      <span class="sb-address-label">Address</span>
-      ${escapeHtml(inst.address)}
-    </div>` : '';
-
-  const searchUrl = 'https://www.google.com/search?q=' +
-                    encodeURIComponent(inst.institution + ' biomedical engineering');
-
-  document.getElementById('sidebarBody').innerHTML = `
-    <div class="sb-eyebrow">
-      <span class="dot" style="background:${inst.bucket.color}"></span>
-      ${escapeHtml(inst.bucket.label)}
-    </div>
-    <h2 class="sb-title">${escapeHtml(inst.institution)}</h2>
-    <p class="sb-location">${escapeHtml(inst.city)}${inst.city && inst.countryName ? ', ' : ''}${escapeHtml(inst.countryName)}</p>
-
-    <p class="sb-description">${escapeHtml(inst.description)}</p>
-
-    <dl class="sb-stats">
-      <div class="stat-chip">
-        <dt>Grantees hosted</dt>
-        <dd>${inst.grantees}</dd>
-      </div>
-      <div class="stat-chip">
-        <dt>Years active</dt>
-        <dd>${escapeHtml(inst.yearsActive) || '—'}</dd>
-      </div>
-    </dl>
-
-    ${themesHtml ? `
-      <div class="sb-section">
-        <h3 class="sb-section-title">Research themes</h3>
-        ${themesHtml}
-      </div>
-    ` : ''}
-
-    <div class="sb-section">
-      <h3 class="sb-section-title">Example Whitaker project titles</h3>
-      ${projectsHtml}
-    </div>
-
-    ${addressHtml}
-
-    <a class="sb-cta" href="${searchUrl}" target="_blank" rel="noopener noreferrer">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-           stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
-      </svg>
-      Find their website
-    </a>
-  `;
-
-  document.getElementById('sidebar').classList.add('is-open');
-
-  // Pan the map gently so the marker is visible alongside the sidebar
-  if (window.innerWidth > 720 && m) {
-    const targetLatLng = m.getLatLng();
-    // Offset to the left so the marker isn't hidden under the sidebar
-    const point = map.latLngToContainerPoint(targetLatLng);
-    point.x -= 165; // offset for left-side Whitaker detail panel
-    const newCenter = map.containerPointToLatLng(point);
-    map.panTo(newCenter, { animate: true, duration: 0.4 });
-  }
-}
-
-function closeSidebar() {
-  document.getElementById('sidebar').classList.remove('is-open');
-  if (activeId && markerById.has(activeId)) {
-    const prev = allInstitutions.find(i => i.id === activeId);
-    if (prev) markerById.get(activeId).setStyle({
-      weight: 1.5, radius: prev.bucket.radius
-    });
-  }
-  activeId = null;
-}
-
-/* =========================================================================
-   EVENT WIRING
-   ========================================================================= */
-document.addEventListener('DOMContentLoaded', function () {
-  initMap();
-  loadData();
-
-  document.getElementById('searchInput').addEventListener('input', applyFilters);
-  document.getElementById('countryFilter').addEventListener('change', applyFilters);
-  document.getElementById('themeFilter').addEventListener('change', applyFilters);
-  document.getElementById('resetBtn').addEventListener('click', resetFilters);
-  document.getElementById('clearLink').addEventListener('click', e => {
-    e.preventDefault();
-    resetFilters();
-  });
-  document.getElementById('sidebarClose').addEventListener('click', closeSidebar);
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeSidebar();
-  });
+function showError(message){$('loadStatus').hidden=false;$('loadStatus').innerHTML=`${e(message)} <button id="retryLoad">Try again</button>`;$('retryLoad').onclick=loadData;$('statsText').textContent='Archive unavailable';}
+$('rail').addEventListener('click',event=>{
+ const b=event.target.closest('button');if(!b)return;
+ if(b.dataset.view)navigate(b.dataset.view);
+ else if(b.dataset.institution)openInstitution(b.dataset.institution);
+ else if(b.dataset.country)chooseFilter('country',b.dataset.country);
+ else if(b.dataset.theme)chooseFilter('theme',b.dataset.theme);
+ else if(b.dataset.remove){state[b.dataset.remove]='';updateFilters({fit:true});}
+ else if(b.dataset.action==='back')goBack();
+ else if(b.dataset.action==='reset')reset();
 });
-</script>
+$('rail').addEventListener('input',event=>{
+ if(event.target.id==='listSearch'){state.listQuery=event.target.value;renderList();}
+});
+$('searchInput').addEventListener('input',()=>{state.query=$('searchInput').value;if(state.view!=='institutions'){state.history.push({view:state.view==='detail'?'home':state.view,listQuery:'',activeId:null});state.view='institutions';state.activeId=null;renderPanel();}if(clusters)updateFilters();});
+$('fitMap').onclick=()=>{if(map)fitResults();};
+$('mobileToggle').onclick=()=>{setPanelOpen($('rail').classList.contains('is-collapsed'));if(map)fitResults();};
+document.addEventListener('keydown',event=>{if(event.key==='Escape'){if(state.view!=='home'){goBack();}else if(mobile()){setPanelOpen(false);$('mobileToggle').focus();}}});
+let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(!mobile())setPanelOpen(true);if(map){map.invalidateSize();fitResults();}},160);});
+renderPanel();
+try{if(!window.L||!L.markerClusterGroup||!window.Papa)throw new Error('Required libraries unavailable');initMap();loadData();}catch(err){$('loadStatus').textContent='The map could not start. Check your internet connection, then reload this page.';$('statsText').textContent='Map unavailable';console.error(err);}
 
+</script>
 </body>
 </html>
