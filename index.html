@@ -18,6 +18,7 @@
 @media(min-width:1450px){:root{--rail:380px}.panel{padding:30px}.nav-item{font-size:24px}}
 @media(max-width:760px){:root{--header:76px;--rail:100%}.site-header{padding:12px 85px 12px 16px}.identity{text-align:left}.identity h1{font-size:21px;letter-spacing:.08em;margin:0 0 4px}.identity p{font-size:9px;letter-spacing:0;line-height:1.4}.brand{display:none}.mobile-toggle{display:block;position:absolute;right:12px;top:19px;padding:8px 12px;border:1px solid #ffffff90;border-radius:4px;font-size:12px}.rail{top:auto;height:52%;height:52dvh;bottom:0;border-top:1px solid var(--line);border-right:0}.rail.is-collapsed{display:none}.search-area{padding:12px 18px 9px}.search-caption{display:none}.search-box input{height:40px}.search-symbol{top:7px}.panel{padding:17px 22px}.panel-footer{padding:8px 22px}.filters{padding:0 22px}.filters:has(button){padding-top:4px;padding-bottom:4px}.filter-chip{font-size:10px;padding:3px 7px}.nav-list{gap:3px;margin-bottom:20px}.nav-item{font-size:21px;min-height:43px}.home-note{padding-top:16px}.legend{right:12px;bottom:calc(52dvh + 10px);padding:6px 9px;font-size:9px}.legend-title{margin-bottom:2px}.legend p{display:none}.legend-scale{gap:8px}.rail.is-collapsed~.legend{bottom:30px}.map-tools{right:12px;top:calc(var(--header) + 95px)}.leaflet-right .leaflet-control{margin-right:12px}.leaflet-bottom{bottom:52dvh}.panel-collapsed .leaflet-bottom{bottom:0}.status-message{top:calc(var(--header) + 12px);left:12px;right:70px;font-size:12px}.back{margin-bottom:12px}.detail-title{font-size:27px}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+.story-row{text-decoration:none}.story-thumb{width:52px;height:64px;object-fit:cover;object-position:center 30%;border-radius:3px;flex:none}.story-initial{width:52px;height:64px;display:grid;place-items:center;background:#17485e;border:1px solid #ffffff50;border-radius:3px;font:24px var(--display);flex:none}.story-group{font-size:17px;letter-spacing:.04em;padding-top:14px}.story-browse{display:inline-block;margin-bottom:6px;font-size:12px}
 </style>
 </head>
 <body>
@@ -39,6 +40,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="stories/catalog.js"></script>
 <script>
 'use strict';
 const CSV_URL = 'Sheet2_Institutions_for_Map.csv';
@@ -124,6 +126,7 @@ const $ = id => document.getElementById(id);
 const state = {view:'home',history:[],query:'',country:'',theme:'',listQuery:'',activeId:null};
 let allInstitutions=[], filtered=[], map, clusters;
 const markers=new Map();
+const STORIES=window.WHITAKER_STORIES||[];
 const mobile=()=>window.matchMedia('(max-width:760px)').matches;
 const animate=()=>!window.matchMedia('(prefers-reduced-motion:reduce)').matches;
 const e=escapeHtml;
@@ -139,6 +142,11 @@ function focusHeading(){$('panel').querySelector('h2')?.focus({preventScroll:tru
 function panelHead(title){return `<button class="back" data-action="back"><span aria-hidden="true">←</span> Back</button><h2 tabindex="-1">${e(title)}</h2>`;}
 function renderPanel(){
  const panel=$('panel');panel.scrollTop=0;
+ const isStories=state.view==='stories';
+ $('searchInput').placeholder=isStories?'Search names, institutions, topics':'Search the archive';
+ $('searchInput').setAttribute('aria-label',isStories?'Search featured stories':'Search institutions, places, and research');
+ $('searchInput').value=isStories?state.listQuery:state.query;
+ document.querySelector('.search-caption').textContent=isStories?'Stories, people & institutions':'Institutions, places & research';
  if(state.view==='home'){
  panel.innerHTML=`<nav aria-label="Explore by">${'<div class="nav-list">'+navButton('institutions','Institutions')+navButton('countries','Countries')+navButton('themes','Research Themes')+navButton('stories','Featured Stories')+navButton('about','About')+'</div>'}</nav><div class="home-note"><div class="eyebrow">2005–2017 · A global legacy</div><h2 tabindex="-1">Explore a world of biomedical engineering.</h2><p>Discover the institutions that welcomed Whitaker fellows and the research they pursued.</p><p>Select a circle on the map, or explore the archive above.</p></div>`;
  }else if(state.view==='institutions'){
@@ -148,16 +156,29 @@ function renderPanel(){
  panel.innerHTML=panelHead(label)+`<label class="sr-only" for="listSearch">Find ${label.toLowerCase()}</label><input class="section-search" type="search" id="listSearch" placeholder="Find ${label.toLowerCase()}" value="${e(state.listQuery)}"><p class="list-note">Counts show institutions matching your other filters.</p><div id="listResults" aria-live="polite"></div>`;renderList();
  }else if(state.view==='detail'){renderDetail();
  }else if(state.view==='stories'){
- panel.innerHTML=panelHead('Featured Stories')+'<div class="eyebrow">From the archive</div><p>Behind every institution is a story of international research, collaboration, and discovery.</p><p>Whitaker fellow interviews and photographs will appear here as they are prepared for the archive.</p><p class="list-note">No interviews are published in this section yet.</p><button class="theme-button" data-view="institutions">Explore host institutions →</button>';
+ panel.innerHTML=panelHead('Featured Stories')+`<div class="eyebrow">People behind the science</div><p class="list-note">Interviews and alumni reflections from 2019–2020. Browse by institution, or search above for a person or topic.</p><p class="list-note">These stories include Whitaker alumni, hosts, and the wider international BME community.</p><a class="story-browse" href="stories/index.html">Open the full story collection ↗</a><div id="storyResults" aria-live="polite"></div>`;renderStories();
  }else if(state.view==='about'){
  panel.innerHTML=panelHead('About this project')+`<div class="eyebrow">EverydayBME</div><p>${INTRO}</p><h3>About &amp; provenance</h3><p>EverydayBME is a digital archival initiative created through the Whitaker International Program Concluding Initiative Grants. The project extends the original “Biomedical Engineers of the World” initiative, which sought to document and share the experiences of Whitaker fellows and their international host institutions through interviews, photography, and storytelling.</p><p>This archive maps the international institutions that hosted Whitaker fellows between 2005–2017 and aims to preserve the program’s global legacy while helping future biomedical engineering trainees identify institutions with established histories of international collaboration and mentorship.</p><p>Institutional summaries were assembled from Whitaker records, institutional websites, publications, and publicly available online sources.</p><h3>How to use this map</h3><p>Use the search and filters to explore institutions by country or research area. Click any marker to view example Whitaker projects, research themes, and institutional details. Many institutions hosted multiple fellows over time, indicating established histories of international collaboration and mentorship.</p><p>Numbered circles represent groups of institutions. Individual circle sizes indicate grantees hosted. Country and research-theme filters can be combined; remove a filter using its × button.</p><h3>Contributions</h3><p>Alumni contributions, corrections, and historical materials are welcome.</p><footer class="archive-note"><p>EverydayBME — Whitaker International Host Map</p><p>Built through the Whitaker Concluding Initiative Grants.<br>Hosted via GitHub Pages.<br><a href="https://github.com/everydaybme/Whitaker-map" target="_blank" rel="noopener noreferrer">View source on GitHub ↗</a></p><p>This is an independently maintained archival project and is not an official website of the Whitaker Foundation.</p></footer>`;
  }
 }
+function fold(text){return text.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[’‘]/g,"'").toLowerCase();}
+function renderStories(){
+ const el=$('storyResults');if(!el)return;
+ const q=fold(state.listQuery.trim());
+ const list=STORIES.filter(s=>fold(s.searchText).includes(q)).sort((a,b)=>a.institution.localeCompare(b.institution)||a.name.localeCompare(b.name));
+ let institution='';el.innerHTML=`<p class="list-note">${list.length} ${list.length===1?'story':'stories'} · grouped by institution</p>`+list.map(s=>{
+ let heading='';if(s.institution!==institution){institution=s.institution;heading=`<h3 class="story-group">${e(institution)}</h3>`;}
+ return heading+`<a class="result-row story-row" href="stories/${e(s.slug)}.html">${s.thumbnail?`<img class="story-thumb" src="stories/${e(s.thumbnail)}" alt="" width="52" height="64" loading="lazy">`:'<span class="story-initial" aria-hidden="true">'+e((s.name.split(' ')[0][0]+s.name.split(' ').slice(-1)[0][0]).toUpperCase())+'</span>'}<span class="row-text"><strong>${e(s.name)}</strong><small>${e(s.title)}</small></span><span aria-hidden="true">›</span></a>`;
+ }).join('');
+ if(!list.length)el.innerHTML='<p>No stories match this search. Try a name, institution, or research topic.</p>';
+}
+function relatedStories(i){const list=STORIES.filter(s=>s.mapInstitution===i.institution);return list.length?'<h3>Featured stories</h3>'+list.map(s=>`<a class="result-row story-row" href="stories/${e(s.slug)}.html"><span class="row-text"><strong>${e(s.name)}</strong><small>${e(s.title)}</small></span><span aria-hidden="true">›</span></a>`).join(''):'';}
 function matches(i,ignore=''){
  return (ignore==='country'||!state.country||i.countryName===state.country)&&(ignore==='theme'||!state.theme||i.themes.includes(state.theme))&&(!state.query||i.searchText.includes(state.query.toLowerCase().trim()));
 }
 function renderList(){
  const el=$('listResults');if(!el)return;
+ if(state.view==='stories'){renderStories();return;}
  if(state.view==='institutions'){
  el.innerHTML=[...filtered].sort((a,b)=>a.institution.localeCompare(b.institution)).map(i=>`<button class="result-row" data-institution="${i.id}"><span class="row-text"><strong>${e(i.institution)}</strong><small>${e([i.city,i.countryName].filter(Boolean).join(', '))}</small></span><span class="count" aria-label="${i.grantees} grantees hosted">${i.grantees}</span></button>`).join('');
  }else{
@@ -190,7 +211,7 @@ function openInstitution(id){
 }
 function renderDetail(){
  const i=allInstitutions.find(i=>i.id===state.activeId);if(!i){state.view='institutions';renderPanel();return;}
- $('panel').innerHTML=`<button class="back" data-action="back"><span aria-hidden="true">←</span> Back</button><div class="eyebrow">Host institution</div><h2 class="detail-title" tabindex="-1">${e(i.institution)}</h2><p class="location">${e([i.city,i.countryName].filter(Boolean).join(' · '))}</p><dl class="detail-stats"><div><dt>Grantees hosted</dt><dd>${i.grantees}</dd></div><div><dt>Years active</dt><dd>${e(i.yearsActive)||'Not recorded'}</dd></div></dl><p>${e(i.description)}</p>${i.themes.length?'<h3>Research themes</h3>'+i.themes.map(t=>`<button class="theme-button" data-theme="${e(t)}">${e(titleCaseTheme(t))}</button>`).join(''):''}<h3>Example Whitaker project titles</h3>${i.projects.length?'<ul class="project-list">'+i.projects.map(p=>`<li>${e(p)}</li>`).join('')+'</ul>':'<p>No project titles available.</p>'}${i.address?`<h3>Address</h3><p>${e(i.address)}</p>`:''}<a class="external" href="${e(i.website || ('https://www.google.com/search?q='+encodeURIComponent(i.institution+' biomedical engineering')))}" target="_blank" rel="noopener noreferrer">${i.website?'Visit institution website':'Find the institution’s website'} ↗</a><p class="list-note">${i.website?'Opens the website listed in the archive in a new tab.':'Opens a web search in a new tab.'}</p>`;
+ $('panel').innerHTML=`<button class="back" data-action="back"><span aria-hidden="true">←</span> Back</button><div class="eyebrow">Host institution</div><h2 class="detail-title" tabindex="-1">${e(i.institution)}</h2><p class="location">${e([i.city,i.countryName].filter(Boolean).join(' · '))}</p><dl class="detail-stats"><div><dt>Grantees hosted</dt><dd>${i.grantees}</dd></div><div><dt>Years active</dt><dd>${e(i.yearsActive)||'Not recorded'}</dd></div></dl><p>${e(i.description)}</p>${i.themes.length?'<h3>Research themes</h3>'+i.themes.map(t=>`<button class="theme-button" data-theme="${e(t)}">${e(titleCaseTheme(t))}</button>`).join(''):''}${relatedStories(i)}<h3>Example Whitaker project titles</h3>${i.projects.length?'<ul class="project-list">'+i.projects.map(p=>`<li>${e(p)}</li>`).join('')+'</ul>':'<p>No project titles available.</p>'}${i.address?`<h3>Address</h3><p>${e(i.address)}</p>`:''}<a class="external" href="${e(i.website || ('https://www.google.com/search?q='+encodeURIComponent(i.institution+' biomedical engineering')))}" target="_blank" rel="noopener noreferrer">${i.website?'Visit institution website':'Find the institution’s website'} ↗</a><p class="list-note">${i.website?'Opens the website listed in the archive in a new tab.':'Opens a web search in a new tab.'}</p>`;
 }
 function mapPadding(){
  const s=map.getSize(), open=!$('rail').classList.contains('is-collapsed');
@@ -240,6 +261,8 @@ function loadData(source=CSV_URL){
  m.on('add',()=>{const el=m.getElement();if(el)el.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();openInstitution(i.id);}};});markers.set(i.id,m);
  });
  updateFilters({fit:true});$('loadStatus').hidden=true;
+ const requested=new URLSearchParams(location.search).get('institution');
+ if(requested){const institution=allInstitutions.find(i=>i.institution===requested);if(institution)openInstitution(institution.id);}
  const skipped=results.data.length-allInstitutions.length;
  if(skipped){$('loadStatus').textContent=`${skipped} records could not be mapped because their coordinates are missing or invalid.`;$('loadStatus').hidden=false;}
  },error:()=>showError('Institution data could not load. Keep Sheet2_Institutions_for_Map.csv in the same folder as index.html and open the site through GitHub Pages or a local web server.')});
@@ -258,11 +281,12 @@ $('rail').addEventListener('click',event=>{
 $('rail').addEventListener('input',event=>{
  if(event.target.id==='listSearch'){state.listQuery=event.target.value;renderList();}
 });
-$('searchInput').addEventListener('input',()=>{state.query=$('searchInput').value;if(state.view!=='institutions'){state.history.push({view:state.view==='detail'?'home':state.view,listQuery:'',activeId:null});state.view='institutions';state.activeId=null;renderPanel();}if(clusters)updateFilters();});
+$('searchInput').addEventListener('input',()=>{if(state.view==='stories'){state.listQuery=$('searchInput').value;renderStories();return;}state.query=$('searchInput').value;if(state.view!=='institutions'){state.history.push({view:state.view==='detail'?'home':state.view,listQuery:'',activeId:null});state.view='institutions';state.activeId=null;renderPanel();}if(clusters)updateFilters();});
 $('fitMap').onclick=()=>{if(map)fitResults();};
 $('mobileToggle').onclick=()=>{setPanelOpen($('rail').classList.contains('is-collapsed'));if(map)fitResults();};
 document.addEventListener('keydown',event=>{if(event.key==='Escape'){if(state.view!=='home'){goBack();}else if(mobile()){setPanelOpen(false);$('mobileToggle').focus();}}});
 let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(!mobile())setPanelOpen(true);if(map){map.invalidateSize();fitResults();}},160);});
+if(location.hash==='#stories')state.view='stories';
 renderPanel();
 try{if(!window.L||!L.markerClusterGroup||!window.Papa)throw new Error('Required libraries unavailable');initMap();if(location.protocol==='file:')chooseLocalCSV();else loadData();}catch(err){$('loadStatus').textContent='The map could not start. Check your internet connection, then reload this page.';$('statsText').textContent='Map unavailable';console.error(err);}
 
