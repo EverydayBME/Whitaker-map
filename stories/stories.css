@@ -7,3 +7,9 @@
 
 /* Release accessibility improvements */
 h1,h2,h3,.facts dd,.longform,.article-copy{overflow-wrap:anywhere}.masthead a:focus-visible{outline-color:#ffda8b}.skip{z-index:100}.facts dd{min-width:0}
+
+/* Accessible reading, enlarged text and institutional reporting links. */
+.skip{top:0;transform:translateY(-150%)}.skip:focus{transform:none}
+[tabindex]:focus-visible{outline:3px solid #b56813;outline-offset:4px}
+.site-footer .accessibility-links{margin-top:12px;line-height:1.8}.accessibility-links a{display:inline-block;padding:4px 0}.site-footer a:focus-visible{outline-color:#ffda8b}
+.masthead{flex-wrap:wrap}.masthead nav{flex-wrap:wrap}.masthead .brand{overflow-wrap:anywhere}.controls>div{min-width:0}input,select{max-width:100%}.facts dl{grid-template-columns:minmax(0,100px) minmax(0,1fr)}
